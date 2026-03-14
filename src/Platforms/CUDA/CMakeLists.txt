@@ -12,15 +12,23 @@
 set(CUDA_RT_SRCS CUDAfill.cpp MemManageCUDA.cpp CUDAruntime.cpp CUDADeviceManager.cpp)
 set(CUDA_LA_SRCS cuBLAS_missing_functions.cu)
 
+if(QMC_BLAS_FP64_EMULATION AND NOT QMC_CUDA2HIP)
+  list(APPEND CUDA_LA_SRCS CublasLtMatmulFP64Emulation.cpp)
+endif()
+
 add_library(platform_cuda_runtime ${CUDA_RT_SRCS})
 add_library(platform_cuda_LA ${CUDA_LA_SRCS})
 
 target_link_libraries(platform_cuda_runtime PRIVATE platform_host_runtime)
 target_include_directories(platform_cuda_runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
+target_include_directories(platform_cuda_LA PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
 if(NOT QMC_CUDA2HIP)
   target_link_libraries(platform_cuda_runtime PUBLIC CUDA::cudart)
   target_link_libraries(platform_cuda_LA PUBLIC CUDA::cublas CUDA::cusolver)
+  if(QMC_BLAS_FP64_EMULATION)
+    target_link_libraries(platform_cuda_LA PUBLIC CUDA::cublasLt)
+  endif()
 else()
   set_source_files_properties(${CUDA_LA_SRCS} PROPERTIES LANGUAGE HIP)
   target_link_libraries(platform_cuda_runtime PUBLIC platform_rocm_runtime)

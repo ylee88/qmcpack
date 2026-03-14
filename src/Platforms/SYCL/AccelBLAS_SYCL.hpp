@@ -11,6 +11,7 @@
 #define QMCPLUSPLUS_SYCL_ACCELBLAS_SYCL_H
 
 #include "Common/AccelBLASHandle.hpp"
+#include "Common/AccelBLASPolicy.hpp"
 #include "SYCL/QueueSYCL.hpp"
 #include "SYCL/syclBLAS.hpp"
 
@@ -18,6 +19,12 @@ namespace qmcplusplus
 {
 namespace compute
 {
+template<>
+struct BLASPolicy<PlatformKind::SYCL>
+{
+  FP64EmulationMode fp64_emulation_mode = FP64EmulationMode::NATIVE;
+};
+
 template<>
 class BLASHandle<PlatformKind::SYCL>
 {
@@ -54,6 +61,28 @@ inline void gemm(BLASHandle<PlatformKind::SYCL>& handle,
   {
     throw std::runtime_error(std::string("AccelBLAS::gemm exception: ") + e.what());
   }
+}
+
+inline void gemm(BLASHandle<PlatformKind::SYCL>& handle,
+                 const char transa,
+                 const char transb,
+                 int m,
+                 int n,
+                 int k,
+                 const double& alpha,
+                 const double* A,
+                 int lda,
+                 const double* B,
+                 int ldb,
+                 const double& beta,
+                 double* C,
+                 int ldc,
+                 const BLASPolicy<PlatformKind::SYCL>& policy)
+{
+  if (policy.fp64_emulation_mode == FP64EmulationMode::NATIVE)
+    gemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+  else
+    throw std::runtime_error("DGEMM FP64 emulation mode is not supported on SYCL backend.");
 }
 
 template<typename T>
@@ -240,6 +269,29 @@ inline void gemm_batched(BLASHandle<PlatformKind::SYCL>& handle,
   {
     throw std::runtime_error(std::string("AccelBLAS::gemm_batched  exception: ") + e.what());
   }
+}
+
+inline void gemm_batched(BLASHandle<PlatformKind::SYCL>& handle,
+                         const char transa,
+                         const char transb,
+                         syclBLAS::syclBLAS_int m,
+                         syclBLAS::syclBLAS_int n,
+                         syclBLAS::syclBLAS_int k,
+                         const double& alpha,
+                         const double* const A[],
+                         syclBLAS::syclBLAS_int lda,
+                         const double* const B[],
+                         syclBLAS::syclBLAS_int ldb,
+                         const double& beta,
+                         double* const C[],
+                         syclBLAS::syclBLAS_int ldc,
+                         const size_t batch_count,
+                         const BLASPolicy<PlatformKind::SYCL>& policy)
+{
+  if (policy.fp64_emulation_mode == FP64EmulationMode::NATIVE)
+    gemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count);
+  else
+    throw std::runtime_error("DGEMM FP64 emulation mode is not supported on SYCL backend.");
 }
 
 } // namespace BLAS

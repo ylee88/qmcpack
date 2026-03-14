@@ -108,6 +108,9 @@
 /* build CUDA source code or call libraries from CUDA toolkit for GPU acceleration */
 #cmakedefine ENABLE_CUDA @ENABLE_CUDA@
 
+/* Enable backend-specific FP64 BLAS emulation support. */
+#cmakedefine QMC_BLAS_FP64_EMULATION @QMC_BLAS_FP64_EMULATION@
+
 /* build SYCL source code for GPU acceleration */
 #cmakedefine ENABLE_SYCL @ENABLE_SYCL@
 
@@ -147,4 +150,3 @@
 #cmakedefine ENABLE_GCOV @ENABLE_GCOV@
 
 #endif // QMCPLUSPLUS_CONFIGURATION_H
-

@@ -56,6 +56,7 @@ include(CMakeDependentOption)
 option(QMC_MPI "Enable/disable MPI" ON)
 option(QMC_OMP "Enable/disable OpenMP" ON)
 option(QMC_COMPLEX "Build for complex binary" OFF)
+option(QMC_BLAS_FP64_EMULATION "Enable backend-specific FP64 BLAS emulation support" OFF)
 if(DEFINED ENABLE_CUDA OR DEFINED ENABLE_ROCM OR DEFINED QMC_CUDA2HIP OR DEFINED ENABLE_SYCL OR DEFINED ENABLE_OFFLOAD)
   message(
     FATAL_ERROR "ENABLE_CUDA, ENABLE_ROCM, QMC_CUDA2HIP, ENABLE_SYCL and ENABLE_OFFLOAD CMake options are removed. "
@@ -71,6 +72,17 @@ include(DetermineGPUFeatures)
 cmake_dependent_option(USE_OBJECT_TARGET "Use CMake object library target" OFF "ENABLE_OFFLOAD" OFF)
 
 include(DetermineDeviceArchitectures)
+
+if(QMC_BLAS_FP64_EMULATION)
+  if(NOT ENABLE_CUDA)
+    message(
+      FATAL_ERROR
+        "QMC_BLAS_FP64_EMULATION requires CUDA backend support.")
+  endif()
+  if(QMC_CUDA2HIP)
+    message(FATAL_ERROR "QMC_BLAS_FP64_EMULATION is CUDA-only and is not supported with HIP translation.")
+  endif()
+endif()
 
 #--------------------------------------------------------------------
 # Set compiler-time parameters
@@ -692,6 +704,9 @@ if(ENABLE_CUDA AND NOT QMC_CUDA2HIP)
         "Found an incomplete CUDA toolkit installation, target CUDA::cublas not found. "
         "This often happens when CMake failed in recognizing the NVHPC internal CUDA toolkit with libcublas. "
         "Set CMAKE_CUDA_COMPILER to the full path of nvcc from a complete CUDA toolkit installation.")
+  endif()
+  if(QMC_BLAS_FP64_EMULATION AND NOT TARGET CUDA::cublasLt)
+    message(FATAL_ERROR "QMC_BLAS_FP64_EMULATION requires CUDA::cublasLt target from the CUDA toolkit.")
   endif()
   # Automatically set the default NVCC flags
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Drestrict=__restrict__ -DNO_CUDA_MAIN")

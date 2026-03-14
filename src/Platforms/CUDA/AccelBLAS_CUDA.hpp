@@ -11,10 +11,16 @@
 #define QMCPLUSPLUS_CUDA_ACCELBLAS_CUDA_H
 
 #include "Common/AccelBLASHandle.hpp"
+#include "Common/AccelBLASPolicy.hpp"
 #include "CUDA/CUDAruntime.hpp"
+#include "CUDA/CublasLtEmulationContext.hpp"
 #include "CUDA/QueueCUDA.hpp"
 #include "CUDA/cuBLAS.hpp"
 #include "CUDA/cuBLAS_missing_functions.hpp"
+
+#include <memory>
+#include <stdexcept>
+#include <cstddef>
 
 #ifndef QMC_CUDA2HIP
 #define castNativeType castCUDAType
@@ -27,6 +33,16 @@ namespace qmcplusplus
 namespace compute
 {
 template<>
+struct BLASPolicy<PlatformKind::CUDA>
+{
+  FP64EmulationMode fp64_emulation_mode = FP64EmulationMode::NATIVE;
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+  std::size_t workspace_size_bytes = 128ULL * 1024ULL * 1024ULL; // 128 MiB
+  int max_mantissa_bits            = 55;
+#endif
+};
+
+template<>
 class BLASHandle<PlatformKind::CUDA>
 {
 public:
@@ -35,17 +51,81 @@ public:
   // cublas handle
   cublasHandle_t h_cublas;
 
+  BLASHandle(const BLASHandle&)            = delete;
+  BLASHandle& operator=(const BLASHandle&) = delete;
+  BLASHandle(BLASHandle&&)                 = delete;
+  BLASHandle& operator=(BLASHandle&&)      = delete;
+
   BLASHandle(Queue<PlatformKind::CUDA>& queue) : h_stream(queue.getNative())
   {
     cublasErrorCheck(cublasCreate(&h_cublas), "cublasCreate failed!");
     cublasErrorCheck(cublasSetStream(h_cublas, h_stream), "cublasSetStream failed!");
   }
 
-  ~BLASHandle() { cublasErrorCheck(cublasDestroy(h_cublas), "cublasDestroy failed!"); }
+  ~BLASHandle()
+  {
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+    lt_emulation_context_.reset();
+#endif
+    cublasErrorCheck(cublasDestroy(h_cublas), "cublasDestroy failed!");
+  }
+
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+  CublasLtEmulationContext& ensureLtEmulationContext(const std::size_t workspace_size_bytes)
+  {
+    if (!lt_emulation_context_)
+      lt_emulation_context_ = std::make_unique<CublasLtEmulationContext>();
+    lt_emulation_context_->ensureWorkspace(workspace_size_bytes);
+    return *lt_emulation_context_;
+  }
+#endif
+
+private:
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+  std::unique_ptr<CublasLtEmulationContext> lt_emulation_context_;
+#endif
 };
 
 namespace BLAS
 {
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+namespace detail
+{
+void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
+                                const char transa,
+                                const char transb,
+                                int m,
+                                int n,
+                                int k,
+                                const double& alpha,
+                                const double* A,
+                                int lda,
+                                const double* B,
+                                int ldb,
+                                const double& beta,
+                                double* C,
+                                int ldc,
+                                const BLASPolicy<PlatformKind::CUDA>& policy);
+
+void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
+                                       const char transa,
+                                       const char transb,
+                                       int m,
+                                       int n,
+                                       int k,
+                                       const double& alpha,
+                                       const double* const A[],
+                                       int lda,
+                                       const double* const B[],
+                                       int ldb,
+                                       const double& beta,
+                                       double* const C[],
+                                       int ldc,
+                                       int batchCount,
+                                       const BLASPolicy<PlatformKind::CUDA>& policy);
+} // namespace detail
+#endif
+
 inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
                  const char transa,
                  const char transb,
@@ -84,6 +164,36 @@ inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
   cublasErrorCheck(cublasDgemm(handle.h_cublas, cuBLAS::convertOperation(transa), cuBLAS::convertOperation(transb), m,
                                n, k, &alpha, A, lda, B, ldb, &beta, C, ldc),
                    "cublasDgemm failed!");
+}
+
+inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
+                 const char transa,
+                 const char transb,
+                 int m,
+                 int n,
+                 int k,
+                 const double& alpha,
+                 const double* A,
+                 int lda,
+                 const double* B,
+                 int ldb,
+                 const double& beta,
+                 double* C,
+                 int ldc,
+                 const BLASPolicy<PlatformKind::CUDA>& policy)
+{
+  if (policy.fp64_emulation_mode == FP64EmulationMode::NATIVE)
+    gemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+  else if (policy.fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
+  {
+    if (policy.max_mantissa_bits <= 0 || policy.max_mantissa_bits > 55)
+      throw std::runtime_error("DGEMM FP64 emulation max_mantissa_bits must be in [1,55].");
+    detail::gemmFp64EmulatedFixedPoint(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, policy);
+  }
+#endif
+  else
+    throw std::runtime_error("Unsupported FP64 emulation mode for CUDA DGEMM.");
 }
 
 inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
@@ -396,6 +506,38 @@ inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
                                       cuBLAS::convertOperation(transb), m, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc,
                                       batchCount),
                    "cublasDgemmBatched failed!");
+}
+
+inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
+                         const char transa,
+                         const char transb,
+                         int m,
+                         int n,
+                         int k,
+                         const double& alpha,
+                         const double* const A[],
+                         int lda,
+                         const double* const B[],
+                         int ldb,
+                         const double& beta,
+                         double* const C[],
+                         int ldc,
+                         int batchCount,
+                         const BLASPolicy<PlatformKind::CUDA>& policy)
+{
+  if (policy.fp64_emulation_mode == FP64EmulationMode::NATIVE)
+    gemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+  else if (policy.fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
+  {
+    if (policy.max_mantissa_bits <= 0 || policy.max_mantissa_bits > 55)
+      throw std::runtime_error("DGEMM FP64 emulation max_mantissa_bits must be in [1,55].");
+    detail::gemmBatchedFp64EmulatedFixedPoint(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
+                                              batchCount, policy);
+  }
+#endif
+  else
+    throw std::runtime_error("Unsupported FP64 emulation mode for CUDA DGEMM batched.");
 }
 
 inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
