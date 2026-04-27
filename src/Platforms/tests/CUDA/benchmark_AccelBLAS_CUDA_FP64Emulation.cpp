@@ -72,9 +72,9 @@ TEST_CASE("AccelBLAS CUDA DGEMM policy benchmark", "[CUDA][BLAS][.benchmark]")
   };
 
   compute::BLASPolicy<PlatformKind::CUDA> emu_policy;
-  emu_policy.fp64_emulation_mode  = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.workspace_size_bytes = 128ULL * 1024ULL * 1024ULL;
-  emu_policy.max_mantissa_bits    = 55;
+  emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
+  emu_policy.min_workspace_bytes = 128ULL * 1024ULL * 1024ULL;
+  emu_policy.max_mantissa_bits   = 55;
 
   BENCHMARK_ADVANCED("[CUDA/f64] dgemm_emu_fixedpoint_1024x1024x1024")(Catch::Benchmark::Chronometer meter)
   {

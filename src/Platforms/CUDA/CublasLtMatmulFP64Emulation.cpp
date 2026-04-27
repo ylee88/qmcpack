@@ -15,6 +15,9 @@
 
 #include <cublasLt.h>
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <vector>
 
 namespace qmcplusplus
@@ -25,6 +28,53 @@ namespace BLAS
 {
 namespace detail
 {
+inline int ceildiv(const int value, const int divisor) { return (value + divisor - 1) / divisor; }
+
+std::size_t getFixedPointWorkspaceSizeInBytes(const int m,
+                                              const int n,
+                                              const int k,
+                                              const int batch_count,
+                                              const bool is_complex,
+                                              const cudaEmulationMantissaControl_t mantissa_control,
+                                              const int max_mantissa_bit_count)
+{
+  constexpr std::size_t FIXED_POINT_CONSTANT_WORKSPACE_BYTES = 128ULL * 1024ULL * 1024ULL;
+  constexpr double FIXED_POINT_WORKSPACE_MULTIPLIER          = 1.25;
+
+  const std::size_t mult       = is_complex ? 2 : 1;
+  const int num_slices         = ceildiv(max_mantissa_bit_count + 1, 8);
+  const int max_splitk         = ceildiv(k, 8192);
+  const int padded_m           = ceildiv(m, 1024) * 1024;
+  const int padded_n           = ceildiv(n, 1024) * 1024;
+  const int padded_k           = ceildiv(k, 128) * 128;
+  const int num_blocks_k       = ceildiv(k, 64);
+  const std::size_t sm32_limit = static_cast<std::size_t>(1ULL << 32);
+
+  std::size_t gemm_workspace = sizeof(int8_t) *
+      (static_cast<std::size_t>(padded_m) * padded_k + static_cast<std::size_t>(padded_n) * padded_k) * mult *
+      num_slices;
+  gemm_workspace += sizeof(int32_t) * (static_cast<std::size_t>(padded_m) + padded_n) * mult;
+
+  std::size_t acc_workspace_ver1 = 0;
+  if (is_complex)
+    acc_workspace_ver1 += sizeof(double) * static_cast<std::size_t>(m) * n * mult * mult;
+
+  const std::size_t acc_workspace_ver2_base =
+      sizeof(int32_t) * static_cast<std::size_t>(padded_m) * padded_n * mult * mult * num_slices;
+  const std::size_t acc_workspace_ver2 = std::min(acc_workspace_ver2_base, sm32_limit) * max_splitk;
+  gemm_workspace += std::max(acc_workspace_ver1, acc_workspace_ver2);
+
+  std::size_t adp_workspace = 0;
+  if (mantissa_control == CUDA_EMULATION_MANTISSA_CONTROL_DYNAMIC)
+    adp_workspace = sizeof(int32_t) *
+        (static_cast<std::size_t>(m) * num_blocks_k + static_cast<std::size_t>(n) * num_blocks_k +
+         static_cast<std::size_t>(m) * n) *
+        mult;
+
+  const std::size_t emulation_workspace = std::max(gemm_workspace, adp_workspace) * batch_count;
+  return static_cast<std::size_t>(std::ceil(emulation_workspace * FIXED_POINT_WORKSPACE_MULTIPLIER)) +
+      FIXED_POINT_CONSTANT_WORKSPACE_BYTES;
+}
 
 void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                                 const char transa,
@@ -42,7 +92,11 @@ void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                                 int ldc,
                                 const BLASPolicy<PlatformKind::CUDA>& policy)
 {
-  auto& lt_emulation_context = handle.ensureLtEmulationContext(policy.workspace_size_bytes);
+  const std::size_t required_workspace_bytes =
+      getFixedPointWorkspaceSizeInBytes(m, n, k, 1, false, CUDA_EMULATION_MANTISSA_CONTROL_FIXED,
+                                        policy.max_mantissa_bits);
+  const std::size_t requested_workspace_bytes = std::max(policy.min_workspace_bytes, required_workspace_bytes);
+  auto& lt_emulation_context                  = handle.ensureLtEmulationContext(requested_workspace_bytes);
 
   cublasLtMatmulDesc_t operation_desc    = nullptr;
   cublasLtMatrixLayout_t a_desc          = nullptr;

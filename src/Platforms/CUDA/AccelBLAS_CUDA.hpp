@@ -37,8 +37,8 @@ struct BLASPolicy<PlatformKind::CUDA>
 {
   FP64EmulationMode fp64_emulation_mode = FP64EmulationMode::NATIVE;
 #if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
-  std::size_t workspace_size_bytes = 128ULL * 1024ULL * 1024ULL; // 128 MiB
-  int max_mantissa_bits            = 55;
+  std::size_t min_workspace_bytes = 128ULL * 1024ULL * 1024ULL; // 128 MiB
+  int max_mantissa_bits           = 55;
 #endif
 };
 
@@ -71,11 +71,11 @@ public:
   }
 
 #if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
-  CublasLtEmulationContext& ensureLtEmulationContext(const std::size_t workspace_size_bytes)
+  CublasLtEmulationContext& ensureLtEmulationContext(const std::size_t requested_workspace_bytes)
   {
     if (!lt_emulation_context_)
       lt_emulation_context_ = std::make_unique<CublasLtEmulationContext>();
-    lt_emulation_context_->ensureWorkspace(workspace_size_bytes);
+    lt_emulation_context_->ensureWorkspace(requested_workspace_bytes);
     return *lt_emulation_context_;
   }
 #endif

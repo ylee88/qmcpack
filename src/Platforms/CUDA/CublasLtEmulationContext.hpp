@@ -47,15 +47,15 @@ public:
   {
     if (workspace_size_bytes > workspace_size_bytes_)
     {
-      if (workspace_ptr_ != nullptr)
-      {
-        cudaErrorCheck(cudaFree(workspace_ptr_), "cudaFree fp64 emulation workspace failed!");
-        workspace_ptr_ = nullptr;
-      }
+      void* new_workspace_ptr = nullptr;
       if (workspace_size_bytes > 0)
-        cudaErrorCheck(cudaMalloc(&workspace_ptr_, workspace_size_bytes),
+        cudaErrorCheck(cudaMalloc(&new_workspace_ptr, workspace_size_bytes),
                        "cudaMalloc fp64 emulation workspace failed!");
 
+      if (workspace_ptr_ != nullptr)
+        cudaErrorCheck(cudaFree(workspace_ptr_), "cudaFree fp64 emulation workspace failed!");
+
+      workspace_ptr_        = new_workspace_ptr;
       workspace_size_bytes_ = workspace_size_bytes;
     }
   }
