@@ -11,7 +11,6 @@
 #define QMCPLUSPLUS_ACCELBLAS_OMPTARGET_H
 
 #include "Common/AccelBLASHandle.hpp"
-#include "Common/AccelBLASPolicy.hpp"
 #include "QueueOMPTarget.hpp"
 #include "ompBLAS.hpp"
 
@@ -19,12 +18,6 @@ namespace qmcplusplus
 {
 namespace compute
 {
-template<>
-struct BLASPolicy<PlatformKind::OMPTARGET>
-{
-  FP64EmulationMode fp64_emulation_mode = FP64EmulationMode::NATIVE;
-};
-
 template<>
 class BLASHandle<PlatformKind::OMPTARGET>
 {
@@ -57,28 +50,6 @@ inline void gemm(BLASHandle<PlatformKind::OMPTARGET>& handle,
     throw std::runtime_error("ompBLAS::gemm failed!");
 }
 
-inline void gemm(BLASHandle<PlatformKind::OMPTARGET>& handle,
-                 const char transa,
-                 const char transb,
-                 int m,
-                 int n,
-                 int k,
-                 const double& alpha,
-                 const double* A,
-                 int lda,
-                 const double* B,
-                 int ldb,
-                 const double& beta,
-                 double* C,
-                 int ldc,
-                 const BLASPolicy<PlatformKind::OMPTARGET>& policy)
-{
-  if (policy.fp64_emulation_mode == FP64EmulationMode::NATIVE)
-    gemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
-  else
-    throw std::runtime_error("DGEMM FP64 emulation mode is not supported on OMPTarget backend.");
-}
-
 template<typename T>
 inline void gemm_batched(BLASHandle<PlatformKind::OMPTARGET>& handle,
                          const char transa,
@@ -100,30 +71,6 @@ inline void gemm_batched(BLASHandle<PlatformKind::OMPTARGET>& handle,
                             batchCount) != 0)
     throw std::runtime_error("ompBLAS::gemm_batched failed!");
 }
-
-inline void gemm_batched(BLASHandle<PlatformKind::OMPTARGET>& handle,
-                         const char transa,
-                         const char transb,
-                         int m,
-                         int n,
-                         int k,
-                         const double& alpha,
-                         const double* const A[],
-                         int lda,
-                         const double* const B[],
-                         int ldb,
-                         const double& beta,
-                         double* const C[],
-                         int ldc,
-                         int batchCount,
-                         const BLASPolicy<PlatformKind::OMPTARGET>& policy)
-{
-  if (policy.fp64_emulation_mode == FP64EmulationMode::NATIVE)
-    gemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
-  else
-    throw std::runtime_error("DGEMM FP64 emulation mode is not supported on OMPTarget backend.");
-}
-
 
 template<typename T>
 inline void gemv(BLASHandle<PlatformKind::OMPTARGET>& handle,
