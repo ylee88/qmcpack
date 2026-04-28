@@ -11,7 +11,7 @@
 #define QMCPLUSPLUS_CUDA_ACCELBLAS_CUDA_H
 
 #include "Common/AccelBLASHandle.hpp"
-#include "Common/AccelBLASPolicy.hpp"
+#include "CUDA/AccelBLASPolicy_CUDA.hpp"
 #include "CUDA/CUDAruntime.hpp"
 #include "CUDA/CublasLtEmulationContext.hpp"
 #include "CUDA/QueueCUDA.hpp"
@@ -33,16 +33,6 @@ namespace qmcplusplus
 {
 namespace compute
 {
-template<>
-struct BLASPolicy<PlatformKind::CUDA>
-{
-  FP64EmulationMode fp64_emulation_mode = FP64EmulationMode::NATIVE;
-#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
-  std::size_t min_workspace_bytes = 128ULL * 1024ULL * 1024ULL; // 128 MiB
-  int max_mantissa_bits           = 55;
-#endif
-};
-
 template<>
 class BLASHandle<PlatformKind::CUDA>
 {
@@ -106,7 +96,7 @@ void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                                 const double& beta,
                                 double* C,
                                 int ldc,
-                                const BLASPolicy<PlatformKind::CUDA>& policy);
+                                const BLASPolicy& policy);
 
 void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                                        const char transa,
@@ -123,7 +113,7 @@ void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                                        double* const C[],
                                        int ldc,
                                        int batchCount,
-                                       const BLASPolicy<PlatformKind::CUDA>& policy);
+                                       const BLASPolicy& policy);
 } // namespace detail
 #endif
 
@@ -161,7 +151,7 @@ inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
                  const double& beta,
                  double* C,
                  int ldc,
-                 const std::optional<BLASPolicy<PlatformKind::CUDA>>& policy = std::nullopt)
+                 const std::optional<BLASPolicy>& policy = std::nullopt)
 {
   if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {
@@ -487,7 +477,7 @@ inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
                          double* const C[],
                          int ldc,
                          int batchCount,
-                         const std::optional<BLASPolicy<PlatformKind::CUDA>>& policy = std::nullopt)
+                         const std::optional<BLASPolicy>& policy = std::nullopt)
 {
   if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {

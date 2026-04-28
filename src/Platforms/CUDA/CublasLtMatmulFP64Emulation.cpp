@@ -89,7 +89,7 @@ void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                                 const double& beta,
                                 double* C,
                                 int ldc,
-                                const BLASPolicy<PlatformKind::CUDA>& policy)
+                                const BLASPolicy& policy)
 {
   const std::size_t required_workspace_bytes =
       getFixedPointWorkspaceSizeInBytes(m, n, k, 1, false, CUDA_EMULATION_MANTISSA_CONTROL_FIXED,
@@ -173,7 +173,7 @@ void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                                        double* const C[],
                                        int ldc,
                                        int batchCount,
-                                       const BLASPolicy<PlatformKind::CUDA>& policy)
+                                       const BLASPolicy& policy)
 {
   const std::size_t required_workspace_bytes =
       getFixedPointWorkspaceSizeInBytes(m, n, k, batchCount, false, CUDA_EMULATION_MANTISSA_CONTROL_FIXED,
