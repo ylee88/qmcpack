@@ -15,13 +15,13 @@
 #include <DualAllocatorAliases.hpp>
 #include <OhmmsPETE/OhmmsMatrix.h>
 
+#include <vector>
+
 namespace qmcplusplus
 {
 #if !defined(QMC_BLAS_FP64_EMULATION)
 TEST_CASE("AccelBLAS CUDA DGEMM policy benchmark disabled", "[CUDA][BLAS][.benchmark]")
-{
-  SUCCEED("QMC_BLAS_FP64_EMULATION is OFF");
-}
+{ SUCCEED("QMC_BLAS_FP64_EMULATION is OFF"); }
 #else
 
 namespace
@@ -81,6 +81,94 @@ TEST_CASE("AccelBLAS CUDA DGEMM policy benchmark", "[CUDA][BLAS][.benchmark]")
     meter.measure([&] {
       compute::BLAS::gemm(h_blas, 'N', 'N', M, N, K, alpha, A.device_data(), M, B.device_data(), K, beta,
                           C.device_data(), M, emu_policy);
+      queue.sync();
+    });
+  };
+}
+
+TEST_CASE("AccelBLAS CUDA DGEMM batched emulation benchmark", "[CUDA][BLAS][.benchmark]")
+{
+  constexpr int M           = 256;
+  constexpr int N           = 256;
+  constexpr int K           = 256;
+  constexpr int batch_count = 32;
+
+  compute::Queue<PlatformKind::CUDA> queue;
+  compute::BLASHandle<PlatformKind::CUDA> h_blas(queue);
+
+  const double alpha = 1.0;
+  const double beta  = 0.0;
+
+  compute::BLASPolicy<PlatformKind::CUDA> native_policy;
+  native_policy.fp64_emulation_mode = compute::FP64EmulationMode::NATIVE;
+
+  compute::BLASPolicy<PlatformKind::CUDA> emu_policy;
+  emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
+  emu_policy.min_workspace_bytes = 128ULL * 1024ULL * 1024ULL;
+  emu_policy.max_mantissa_bits   = 55;
+
+  std::vector<mat_t> A_b(batch_count), B_b(batch_count), C_loop(batch_count), C_batched(batch_count);
+  for (int ib = 0; ib < batch_count; ++ib)
+  {
+    A_b[ib]       = mat_t(K, M);
+    B_b[ib]       = mat_t(N, K);
+    C_loop[ib]    = mat_t(N, M);
+    C_batched[ib] = mat_t(N, M);
+
+    fill_mat(A_b[ib]);
+    fill_mat(B_b[ib]);
+    A_b[ib].updateTo();
+    B_b[ib].updateTo();
+    C_loop[ib].updateTo();
+    C_batched[ib].updateTo();
+  }
+
+  Vector<const double*, PinnedDualAllocator<const double*>> Aarr(batch_count), Barr(batch_count);
+  Vector<double*, PinnedDualAllocator<double*>> Carr_loop(batch_count), Carr_batched(batch_count);
+  for (int ib = 0; ib < batch_count; ++ib)
+  {
+    Aarr[ib]         = A_b[ib].device_data();
+    Barr[ib]         = B_b[ib].device_data();
+    Carr_loop[ib]    = C_loop[ib].device_data();
+    Carr_batched[ib] = C_batched[ib].device_data();
+  }
+  Aarr.updateTo();
+  Barr.updateTo();
+  Carr_loop.updateTo();
+  Carr_batched.updateTo();
+
+  compute::BLAS::gemm_batched(h_blas, 'N', 'N', M, N, K, alpha, Aarr.device_data(), M, Barr.device_data(), K, beta,
+                              Carr_batched.device_data(), M, batch_count, native_policy);
+  for (int ib = 0; ib < batch_count; ++ib)
+    compute::BLAS::gemm(h_blas, 'N', 'N', M, N, K, alpha, Aarr[ib], M, Barr[ib], K, beta, Carr_loop[ib], M, emu_policy);
+  compute::BLAS::gemm_batched(h_blas, 'N', 'N', M, N, K, alpha, Aarr.device_data(), M, Barr.device_data(), K, beta,
+                              Carr_batched.device_data(), M, batch_count, emu_policy);
+  queue.sync();
+
+  BENCHMARK_ADVANCED("[CUDA/f64] dgemm_native_batched_256x256x256_bs32")(Catch::Benchmark::Chronometer meter)
+  {
+    meter.measure([&] {
+      compute::BLAS::gemm_batched(h_blas, 'N', 'N', M, N, K, alpha, Aarr.device_data(), M, Barr.device_data(), K, beta,
+                                  Carr_batched.device_data(), M, batch_count, native_policy);
+      queue.sync();
+    });
+  };
+
+  BENCHMARK_ADVANCED("[CUDA/f64] dgemm_emu_loop_batched_256x256x256_bs32")(Catch::Benchmark::Chronometer meter)
+  {
+    meter.measure([&] {
+      for (int ib = 0; ib < batch_count; ++ib)
+        compute::BLAS::gemm(h_blas, 'N', 'N', M, N, K, alpha, Aarr[ib], M, Barr[ib], K, beta, Carr_loop[ib], M,
+                            emu_policy);
+      queue.sync();
+    });
+  };
+
+  BENCHMARK_ADVANCED("[CUDA/f64] dgemm_emu_pointer_array_batched_256x256x256_bs32")(Catch::Benchmark::Chronometer meter)
+  {
+    meter.measure([&] {
+      compute::BLAS::gemm_batched(h_blas, 'N', 'N', M, N, K, alpha, Aarr.device_data(), M, Barr.device_data(), K, beta,
+                                  Carr_batched.device_data(), M, batch_count, emu_policy);
       queue.sync();
     });
   };
