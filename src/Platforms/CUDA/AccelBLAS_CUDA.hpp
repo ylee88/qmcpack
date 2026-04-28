@@ -21,6 +21,7 @@
 #include <memory>
 #include <stdexcept>
 #include <cstddef>
+#include <optional>
 
 #ifndef QMC_CUDA2HIP
 #define castNativeType castCUDAType
@@ -159,37 +160,22 @@ inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
                  int ldb,
                  const double& beta,
                  double* C,
-                 int ldc)
-{
-  cublasErrorCheck(cublasDgemm(handle.h_cublas, cuBLAS::convertOperation(transa), cuBLAS::convertOperation(transb), m,
-                               n, k, &alpha, A, lda, B, ldb, &beta, C, ldc),
-                   "cublasDgemm failed!");
-}
-
-inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
-                 const char transa,
-                 const char transb,
-                 int m,
-                 int n,
-                 int k,
-                 const double& alpha,
-                 const double* A,
-                 int lda,
-                 const double* B,
-                 int ldb,
-                 const double& beta,
-                 double* C,
                  int ldc,
-                 const BLASPolicy<PlatformKind::CUDA>& policy)
+                 const std::optional<BLASPolicy<PlatformKind::CUDA>>& policy = std::nullopt)
 {
-  if (policy.fp64_emulation_mode == FP64EmulationMode::NATIVE)
-    gemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
-#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
-  else if (policy.fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
+  if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {
-    if (policy.max_mantissa_bits <= 0 || policy.max_mantissa_bits > 55)
+    cublasErrorCheck(cublasDgemm(handle.h_cublas, cuBLAS::convertOperation(transa), cuBLAS::convertOperation(transb), m,
+                                 n, k, &alpha, A, lda, B, ldb, &beta, C, ldc),
+                      "cublasDgemm failed!");
+  }
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+  else if (policy->fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
+  {
+    if (policy->max_mantissa_bits <= 0 || policy->max_mantissa_bits > 55)
       throw std::runtime_error("DGEMM FP64 emulation max_mantissa_bits must be in [1,55].");
-    detail::gemmFp64EmulatedFixedPoint(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, policy);
+    detail::gemmFp64EmulatedFixedPoint(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
+                                       *policy);
   }
 #endif
   else
@@ -500,40 +486,23 @@ inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
                          const double& beta,
                          double* const C[],
                          int ldc,
-                         int batchCount)
-{
-  cublasErrorCheck(cublasDgemmBatched(handle.h_cublas, cuBLAS::convertOperation(transa),
-                                      cuBLAS::convertOperation(transb), m, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc,
-                                      batchCount),
-                   "cublasDgemmBatched failed!");
-}
-
-inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
-                         const char transa,
-                         const char transb,
-                         int m,
-                         int n,
-                         int k,
-                         const double& alpha,
-                         const double* const A[],
-                         int lda,
-                         const double* const B[],
-                         int ldb,
-                         const double& beta,
-                         double* const C[],
-                         int ldc,
                          int batchCount,
-                         const BLASPolicy<PlatformKind::CUDA>& policy)
+                         const std::optional<BLASPolicy<PlatformKind::CUDA>>& policy = std::nullopt)
 {
-  if (policy.fp64_emulation_mode == FP64EmulationMode::NATIVE)
-    gemm_batched(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batchCount);
-#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
-  else if (policy.fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
+  if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {
-    if (policy.max_mantissa_bits <= 0 || policy.max_mantissa_bits > 55)
+    cublasErrorCheck(cublasDgemmBatched(handle.h_cublas, cuBLAS::convertOperation(transa),
+                                        cuBLAS::convertOperation(transb), m, n, k, &alpha, A, lda, B, ldb, &beta, C,
+                                        ldc, batchCount),
+                     "cublasDgemmBatched failed!");
+  }
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+  else if (policy->fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
+  {
+    if (policy->max_mantissa_bits <= 0 || policy->max_mantissa_bits > 55)
       throw std::runtime_error("DGEMM FP64 emulation max_mantissa_bits must be in [1,55].");
     detail::gemmBatchedFp64EmulatedFixedPoint(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
-                                              batchCount, policy);
+                                               batchCount, *policy);
   }
 #endif
   else
