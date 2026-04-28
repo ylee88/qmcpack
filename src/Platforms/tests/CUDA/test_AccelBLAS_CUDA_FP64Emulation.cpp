@@ -62,7 +62,7 @@ TEST_CASE("AccelBLAS_CUDA_DGEMM_policy", "[CUDA][BLAS]")
   compute::BLAS::gemm(h_blas, 'N', 'N', M, N, K, alpha, A.device_data(), M, B.device_data(), K, beta,
                       C_native.device_data(), M);
 
-  compute::BLASPolicy<PlatformKind::CUDA> native_policy;
+  compute::BLASPolicy native_policy;
   native_policy.fp64_emulation_mode = compute::FP64EmulationMode::NATIVE;
   compute::BLAS::gemm(h_blas, 'N', 'N', M, N, K, alpha, A.device_data(), M, B.device_data(), K, beta,
                       C_policy_native.device_data(), M, native_policy);
@@ -123,7 +123,7 @@ TEST_CASE("AccelBLAS_CUDA_DGEMM_policy_batched", "[CUDA][BLAS]")
   const double alpha = 1.0;
   const double beta  = 0.0;
 
-  compute::BLASPolicy<PlatformKind::CUDA> native_policy;
+  compute::BLASPolicy native_policy;
   native_policy.fp64_emulation_mode = compute::FP64EmulationMode::NATIVE;
   compute::BLAS::gemm_batched(h_blas, 'N', 'N', M, N, K, alpha, Aarr.device_data(), M, Barr.device_data(), K, beta,
                               Carr.device_data(), M, batch_count, native_policy);
@@ -162,7 +162,7 @@ TEST_CASE("AccelBLAS_CUDA_DGEMM_policy_emulation_request", "[CUDA][BLAS]")
   compute::Queue<PlatformKind::CUDA> queue;
   compute::BLASHandle<PlatformKind::CUDA> h_blas(queue);
 
-  compute::BLASPolicy<PlatformKind::CUDA> emu_policy;
+  compute::BLASPolicy emu_policy;
   emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
   emu_policy.min_workspace_bytes = 64ULL * 1024ULL * 1024ULL;
   emu_policy.max_mantissa_bits   = 55;

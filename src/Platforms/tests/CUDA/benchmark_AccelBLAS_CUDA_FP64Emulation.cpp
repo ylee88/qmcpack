@@ -59,7 +59,7 @@ TEST_CASE("AccelBLAS CUDA DGEMM policy benchmark", "[CUDA][BLAS][.benchmark]")
   const double alpha = 1.0;
   const double beta  = 0.0;
 
-  compute::BLASPolicy<PlatformKind::CUDA> native_policy;
+  compute::BLASPolicy native_policy;
   native_policy.fp64_emulation_mode = compute::FP64EmulationMode::NATIVE;
 
   BENCHMARK_ADVANCED("[CUDA/f64] dgemm_native_1024x1024x1024")(Catch::Benchmark::Chronometer meter)
@@ -71,7 +71,7 @@ TEST_CASE("AccelBLAS CUDA DGEMM policy benchmark", "[CUDA][BLAS][.benchmark]")
     });
   };
 
-  compute::BLASPolicy<PlatformKind::CUDA> emu_policy;
+  compute::BLASPolicy emu_policy;
   emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
   emu_policy.min_workspace_bytes = 128ULL * 1024ULL * 1024ULL;
   emu_policy.max_mantissa_bits   = 55;
@@ -99,10 +99,10 @@ TEST_CASE("AccelBLAS CUDA DGEMM batched emulation benchmark", "[CUDA][BLAS][.ben
   const double alpha = 1.0;
   const double beta  = 0.0;
 
-  compute::BLASPolicy<PlatformKind::CUDA> native_policy;
+  compute::BLASPolicy native_policy;
   native_policy.fp64_emulation_mode = compute::FP64EmulationMode::NATIVE;
 
-  compute::BLASPolicy<PlatformKind::CUDA> emu_policy;
+  compute::BLASPolicy emu_policy;
   emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
   emu_policy.min_workspace_bytes = 128ULL * 1024ULL * 1024ULL;
   emu_policy.max_mantissa_bits   = 55;
