@@ -153,6 +153,16 @@ inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
                  int ldc,
                  const std::optional<BLASPolicy>& policy = std::nullopt)
 {
+#if defined(QMC_CUDA2HIP)
+  if (policy.has_value())
+    throw std::runtime_error("BLASPolicy for CUDA DGEMM is not supported with HIP translation.");
+#endif
+
+#if !defined(QMC_CUDA2HIP) && !defined(QMC_BLAS_FP64_EMULATION)
+  if (policy.has_value())
+    throw std::runtime_error("BLASPolicy for CUDA DGEMM requires QMC_BLAS_FP64_EMULATION=ON.");
+#endif
+
   if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {
     cublasErrorCheck(cublasDgemm(handle.h_cublas, cuBLAS::convertOperation(transa), cuBLAS::convertOperation(transb), m,
@@ -479,6 +489,16 @@ inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
                          int batchCount,
                          const std::optional<BLASPolicy>& policy = std::nullopt)
 {
+#if defined(QMC_CUDA2HIP)
+  if (policy.has_value())
+    throw std::runtime_error("BLASPolicy for CUDA DGEMM batched is not supported with HIP translation.");
+#endif
+
+#if !defined(QMC_CUDA2HIP) && !defined(QMC_BLAS_FP64_EMULATION)
+  if (policy.has_value())
+    throw std::runtime_error("BLASPolicy for CUDA DGEMM batched requires QMC_BLAS_FP64_EMULATION=ON.");
+#endif
+
   if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {
     cublasErrorCheck(cublasDgemmBatched(handle.h_cublas, cuBLAS::convertOperation(transa),

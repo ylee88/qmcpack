@@ -21,7 +21,6 @@ namespace qmcplusplus
 namespace compute
 {
 
-#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
 enum class FP64EmulationMode
 {
   NATIVE,
@@ -34,7 +33,6 @@ struct BLASPolicy
   std::size_t min_workspace_bytes = 128ULL * 1024ULL * 1024ULL; // 128 MiB
   int max_mantissa_bits           = 55;
 };
-#endif
 
 } // namespace compute
 } // namespace qmcplusplus
