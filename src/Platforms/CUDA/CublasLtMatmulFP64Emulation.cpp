@@ -265,6 +265,195 @@ void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
   cublasErrorCheck(cublasLtMatmulDescDestroy(operation_desc), "cublasLtMatmulDescDestroy failed!");
 }
 
+void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
+                                const char transa,
+                                const char transb,
+                                int m,
+                                int n,
+                                int k,
+                                const cuDoubleComplex& alpha,
+                                const cuDoubleComplex* A,
+                                int lda,
+                                const cuDoubleComplex* B,
+                                int ldb,
+                                const cuDoubleComplex& beta,
+                                cuDoubleComplex* C,
+                                int ldc,
+                                const BLASPolicy& policy)
+{
+  const std::size_t required_workspace_bytes =
+      getFixedPointWorkspaceSizeInBytes(m, n, k, 1, true, CUDA_EMULATION_MANTISSA_CONTROL_FIXED,
+                                        policy.max_mantissa_bits);
+  const std::size_t requested_workspace_bytes = std::max(policy.min_workspace_bytes, required_workspace_bytes);
+  auto& lt_emulation_context                  = handle.ensureLtEmulationContext(requested_workspace_bytes);
+
+  cublasLtMatmulDesc_t operation_desc    = nullptr;
+  cublasLtMatrixLayout_t a_desc          = nullptr;
+  cublasLtMatrixLayout_t b_desc          = nullptr;
+  cublasLtMatrixLayout_t c_desc          = nullptr;
+  cublasLtEmulationDesc_t emulation_desc = nullptr;
+
+  const cublasOperation_t transa_op = cuBLAS::convertOperation(transa);
+  const cublasOperation_t transb_op = cuBLAS::convertOperation(transb);
+
+  const int rows_a = (transa_op == CUBLAS_OP_N) ? m : k;
+  const int cols_a = (transa_op == CUBLAS_OP_N) ? k : m;
+  const int rows_b = (transb_op == CUBLAS_OP_N) ? k : n;
+  const int cols_b = (transb_op == CUBLAS_OP_N) ? n : k;
+
+  cublasErrorCheck(cublasLtMatmulDescCreate(&operation_desc, CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT, CUDA_C_64F),
+                   "cublasLtMatmulDescCreate failed!");
+  cublasErrorCheck(cublasLtMatmulDescSetAttribute(operation_desc, CUBLASLT_MATMUL_DESC_TRANSA, &transa_op,
+                                                  sizeof(transa_op)),
+                   "cublasLtMatmulDescSetAttribute TRANSA failed!");
+  cublasErrorCheck(cublasLtMatmulDescSetAttribute(operation_desc, CUBLASLT_MATMUL_DESC_TRANSB, &transb_op,
+                                                  sizeof(transb_op)),
+                   "cublasLtMatmulDescSetAttribute TRANSB failed!");
+
+  cublasErrorCheck(cublasLtEmulationDescCreate(&emulation_desc), "cublasLtEmulationDescCreate failed!");
+
+  const cublasEmulationStrategy_t strategy              = CUBLAS_EMULATION_STRATEGY_EAGER;
+  const cudaEmulationMantissaControl_t mantissa_control = CUDA_EMULATION_MANTISSA_CONTROL_FIXED;
+
+  cublasErrorCheck(cublasLtEmulationDescSetAttribute(emulation_desc, CUBLASLT_EMULATION_DESC_STRATEGY, &strategy,
+                                                     sizeof(strategy)),
+                   "cublasLtEmulationDescSetAttribute STRATEGY failed!");
+  cublasErrorCheck(cublasLtEmulationDescSetAttribute(emulation_desc,
+                                                     CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_CONTROL,
+                                                     &mantissa_control, sizeof(mantissa_control)),
+                   "cublasLtEmulationDescSetAttribute MANTISSA_CONTROL failed!");
+  cublasErrorCheck(cublasLtEmulationDescSetAttribute(emulation_desc,
+                                                     CUBLASLT_EMULATION_DESC_FIXEDPOINT_MAX_MANTISSA_BIT_COUNT,
+                                                     &policy.max_mantissa_bits, sizeof(policy.max_mantissa_bits)),
+                   "cublasLtEmulationDescSetAttribute MAX_MANTISSA_BIT_COUNT failed!");
+  cublasErrorCheck(cublasLtMatmulDescSetAttribute(operation_desc, CUBLASLT_MATMUL_DESC_EMULATION_DESCRIPTOR,
+                                                  &emulation_desc, sizeof(emulation_desc)),
+                   "cublasLtMatmulDescSetAttribute EMULATION_DESCRIPTOR failed!");
+
+  cublasErrorCheck(cublasLtMatrixLayoutCreate(&a_desc, CUDA_C_64F, rows_a, cols_a, lda),
+                   "cublasLtMatrixLayoutCreate A failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutCreate(&b_desc, CUDA_C_64F, rows_b, cols_b, ldb),
+                   "cublasLtMatrixLayoutCreate B failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutCreate(&c_desc, CUDA_C_64F, m, n, ldc), "cublasLtMatrixLayoutCreate C failed!");
+
+  cublasErrorCheck(cublasLtMatmul(lt_emulation_context.getLtHandle(), operation_desc, &alpha, A, a_desc, B, b_desc,
+                                  &beta, C, c_desc, C, c_desc, nullptr, lt_emulation_context.getWorkspacePtr(),
+                                  lt_emulation_context.getWorkspaceSize(), handle.h_stream),
+                   "cublasLtMatmul failed!");
+
+  cublasErrorCheck(cublasLtMatrixLayoutDestroy(c_desc), "cublasLtMatrixLayoutDestroy C failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutDestroy(b_desc), "cublasLtMatrixLayoutDestroy B failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutDestroy(a_desc), "cublasLtMatrixLayoutDestroy A failed!");
+  cublasErrorCheck(cublasLtEmulationDescDestroy(emulation_desc), "cublasLtEmulationDescDestroy failed!");
+  cublasErrorCheck(cublasLtMatmulDescDestroy(operation_desc), "cublasLtMatmulDescDestroy failed!");
+}
+
+void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
+                                       const char transa,
+                                       const char transb,
+                                       int m,
+                                       int n,
+                                       int k,
+                                       const cuDoubleComplex& alpha,
+                                       const cuDoubleComplex* const A[],
+                                       int lda,
+                                       const cuDoubleComplex* const B[],
+                                       int ldb,
+                                       const cuDoubleComplex& beta,
+                                       const cuDoubleComplex* const C[],
+                                       int ldc,
+                                       int batchCount,
+                                       const BLASPolicy& policy)
+{
+  const std::size_t required_workspace_bytes =
+      getFixedPointWorkspaceSizeInBytes(m, n, k, batchCount, true, CUDA_EMULATION_MANTISSA_CONTROL_FIXED,
+                                        policy.max_mantissa_bits);
+  const std::size_t requested_workspace_bytes = std::max(policy.min_workspace_bytes, required_workspace_bytes);
+  auto& lt_emulation_context                  = handle.ensureLtEmulationContext(requested_workspace_bytes);
+
+  cublasLtMatmulDesc_t operation_desc    = nullptr;
+  cublasLtMatrixLayout_t a_desc          = nullptr;
+  cublasLtMatrixLayout_t b_desc          = nullptr;
+  cublasLtMatrixLayout_t c_desc          = nullptr;
+  cublasLtEmulationDesc_t emulation_desc = nullptr;
+
+  const cublasOperation_t transa_op = cuBLAS::convertOperation(transa);
+  const cublasOperation_t transb_op = cuBLAS::convertOperation(transb);
+
+  const int rows_a = (transa_op == CUBLAS_OP_N) ? m : k;
+  const int cols_a = (transa_op == CUBLAS_OP_N) ? k : m;
+  const int rows_b = (transb_op == CUBLAS_OP_N) ? k : n;
+  const int cols_b = (transb_op == CUBLAS_OP_N) ? n : k;
+
+  cublasErrorCheck(cublasLtMatmulDescCreate(&operation_desc, CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT, CUDA_C_64F),
+                   "cublasLtMatmulDescCreate failed!");
+  cublasErrorCheck(cublasLtMatmulDescSetAttribute(operation_desc, CUBLASLT_MATMUL_DESC_TRANSA, &transa_op,
+                                                  sizeof(transa_op)),
+                   "cublasLtMatmulDescSetAttribute TRANSA failed!");
+  cublasErrorCheck(cublasLtMatmulDescSetAttribute(operation_desc, CUBLASLT_MATMUL_DESC_TRANSB, &transb_op,
+                                                  sizeof(transb_op)),
+                   "cublasLtMatmulDescSetAttribute TRANSB failed!");
+
+  cublasErrorCheck(cublasLtEmulationDescCreate(&emulation_desc), "cublasLtEmulationDescCreate failed!");
+
+  const cublasEmulationStrategy_t strategy              = CUBLAS_EMULATION_STRATEGY_EAGER;
+  const cudaEmulationMantissaControl_t mantissa_control = CUDA_EMULATION_MANTISSA_CONTROL_FIXED;
+
+  cublasErrorCheck(cublasLtEmulationDescSetAttribute(emulation_desc, CUBLASLT_EMULATION_DESC_STRATEGY, &strategy,
+                                                     sizeof(strategy)),
+                   "cublasLtEmulationDescSetAttribute STRATEGY failed!");
+  cublasErrorCheck(cublasLtEmulationDescSetAttribute(emulation_desc,
+                                                     CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_CONTROL,
+                                                     &mantissa_control, sizeof(mantissa_control)),
+                   "cublasLtEmulationDescSetAttribute MANTISSA_CONTROL failed!");
+  cublasErrorCheck(cublasLtEmulationDescSetAttribute(emulation_desc,
+                                                     CUBLASLT_EMULATION_DESC_FIXEDPOINT_MAX_MANTISSA_BIT_COUNT,
+                                                     &policy.max_mantissa_bits, sizeof(policy.max_mantissa_bits)),
+                   "cublasLtEmulationDescSetAttribute MAX_MANTISSA_BIT_COUNT failed!");
+  cublasErrorCheck(cublasLtMatmulDescSetAttribute(operation_desc, CUBLASLT_MATMUL_DESC_EMULATION_DESCRIPTOR,
+                                                  &emulation_desc, sizeof(emulation_desc)),
+                   "cublasLtMatmulDescSetAttribute EMULATION_DESCRIPTOR failed!");
+
+  cublasErrorCheck(cublasLtMatrixLayoutCreate(&a_desc, CUDA_C_64F, rows_a, cols_a, lda),
+                   "cublasLtMatrixLayoutCreate A failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutCreate(&b_desc, CUDA_C_64F, rows_b, cols_b, ldb),
+                   "cublasLtMatrixLayoutCreate B failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutCreate(&c_desc, CUDA_C_64F, m, n, ldc), "cublasLtMatrixLayoutCreate C failed!");
+
+  const cublasLtBatchMode_t batch_mode = CUBLASLT_BATCH_MODE_POINTER_ARRAY;
+  cublasErrorCheck(cublasLtMatrixLayoutSetAttribute(a_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &batchCount,
+                                                    sizeof(batchCount)),
+                   "cublasLtMatrixLayoutSetAttribute A BATCH_COUNT failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutSetAttribute(b_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &batchCount,
+                                                    sizeof(batchCount)),
+                   "cublasLtMatrixLayoutSetAttribute B BATCH_COUNT failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutSetAttribute(c_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &batchCount,
+                                                    sizeof(batchCount)),
+                   "cublasLtMatrixLayoutSetAttribute C BATCH_COUNT failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutSetAttribute(a_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_MODE, &batch_mode,
+                                                    sizeof(batch_mode)),
+                   "cublasLtMatrixLayoutSetAttribute A BATCH_MODE failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutSetAttribute(b_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_MODE, &batch_mode,
+                                                    sizeof(batch_mode)),
+                   "cublasLtMatrixLayoutSetAttribute B BATCH_MODE failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutSetAttribute(c_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_MODE, &batch_mode,
+                                                    sizeof(batch_mode)),
+                   "cublasLtMatrixLayoutSetAttribute C BATCH_MODE failed!");
+
+  auto non_const_C = const_cast<BottomConstRemoved<decltype(C)>::type>(C);
+  cublasErrorCheck(cublasLtMatmul(lt_emulation_context.getLtHandle(), operation_desc, &alpha, A, a_desc, B, b_desc,
+                                  &beta, C, c_desc, non_const_C, c_desc, nullptr,
+                                  lt_emulation_context.getWorkspacePtr(),
+                                  lt_emulation_context.getWorkspaceSize(), handle.h_stream),
+                   "cublasLtMatmul batched failed!");
+
+  cublasErrorCheck(cublasLtMatrixLayoutDestroy(c_desc), "cublasLtMatrixLayoutDestroy C failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutDestroy(b_desc), "cublasLtMatrixLayoutDestroy B failed!");
+  cublasErrorCheck(cublasLtMatrixLayoutDestroy(a_desc), "cublasLtMatrixLayoutDestroy A failed!");
+  cublasErrorCheck(cublasLtEmulationDescDestroy(emulation_desc), "cublasLtEmulationDescDestroy failed!");
+  cublasErrorCheck(cublasLtMatmulDescDestroy(operation_desc), "cublasLtMatmulDescDestroy failed!");
+}
+
 } // namespace detail
 } // namespace BLAS
 } // namespace compute
