@@ -72,6 +72,7 @@ inline void gemm_batched(BLASHandle<PlatformKind::OMPTARGET>& handle,
     throw std::runtime_error("ompBLAS::gemm_batched failed!");
 }
 
+
 template<typename T>
 inline void gemv(BLASHandle<PlatformKind::OMPTARGET>& handle,
                          const char trans,
