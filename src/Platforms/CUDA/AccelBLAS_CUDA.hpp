@@ -18,6 +18,10 @@
 #include "CUDA/cuBLAS.hpp"
 #include "CUDA/cuBLAS_missing_functions.hpp"
 
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+#include "CUDA/CublasLtMatmulFP64Emulation.hpp"
+#endif
+
 #include <memory>
 #include <stdexcept>
 #include <cstddef>
@@ -79,77 +83,6 @@ private:
 
 namespace BLAS
 {
-#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
-namespace detail
-{
-void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
-                                const char transa,
-                                const char transb,
-                                int m,
-                                int n,
-                                int k,
-                                const double& alpha,
-                                const double* A,
-                                int lda,
-                                const double* B,
-                                int ldb,
-                                const double& beta,
-                                double* C,
-                                int ldc,
-                                const BLASPolicy& policy);
-
-void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
-                                       const char transa,
-                                       const char transb,
-                                       int m,
-                                       int n,
-                                       int k,
-                                       const double& alpha,
-                                       const double* const A[],
-                                       int lda,
-                                       const double* const B[],
-                                       int ldb,
-                                       const double& beta,
-                                       double* const C[],
-                                       int ldc,
-                                       int batchCount,
-                                       const BLASPolicy& policy);
-
-void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
-                                const char transa,
-                                const char transb,
-                                int m,
-                                int n,
-                                int k,
-                                const cuDoubleComplex& alpha,
-                                const cuDoubleComplex* A,
-                                int lda,
-                                const cuDoubleComplex* B,
-                                int ldb,
-                                const cuDoubleComplex& beta,
-                                cuDoubleComplex* C,
-                                int ldc,
-                                const BLASPolicy& policy);
-
-void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
-                                       const char transa,
-                                       const char transb,
-                                       int m,
-                                       int n,
-                                       int k,
-                                       const cuDoubleComplex& alpha,
-                                       const cuDoubleComplex* const A[],
-                                       int lda,
-                                       const cuDoubleComplex* const B[],
-                                       int ldb,
-                                       const cuDoubleComplex& beta,
-                                       const cuDoubleComplex* const C[],
-                                       int ldc,
-                                       int batchCount,
-                                       const BLASPolicy& policy);
-} // namespace detail
-#endif
-
 inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
                  const char transa,
                  const char transb,
@@ -207,8 +140,8 @@ inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
   {
     if (policy->max_mantissa_bits <= 0 || policy->max_mantissa_bits > 55)
       throw std::runtime_error("DGEMM FP64 emulation max_mantissa_bits must be in [1,55].");
-    detail::gemmFp64EmulatedFixedPoint(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
-                                       *policy);
+    detail::gemmFp64EmulatedFixedPoint<double>(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
+                                               *policy);
   }
 #endif
   else
@@ -280,8 +213,9 @@ inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
     if (policy->max_mantissa_bits <= 0 || policy->max_mantissa_bits > 55)
       throw std::runtime_error("ZGEMM FP64 emulation max_mantissa_bits must be in [1,55].");
 
-    detail::gemmFp64EmulatedFixedPoint(handle, transa, transb, m, n, k, alpha_cu, castNativeType(A), lda,
-                                       castNativeType(B), ldb, beta_cu, castNativeType(C), ldc, *policy);
+    detail::gemmFp64EmulatedFixedPoint<cuDoubleComplex>(handle, transa, transb, m, n, k, alpha_cu,
+                                                        castNativeType(A), lda, castNativeType(B), ldb, beta_cu,
+                                                        castNativeType(C), ldc, *policy);
   }
 #endif
   else
@@ -571,8 +505,8 @@ inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
   {
     if (policy->max_mantissa_bits <= 0 || policy->max_mantissa_bits > 55)
       throw std::runtime_error("DGEMM FP64 emulation max_mantissa_bits must be in [1,55].");
-    detail::gemmBatchedFp64EmulatedFixedPoint(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
-                                               batchCount, *policy);
+    detail::gemmBatchedFp64EmulatedFixedPoint<double>(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta,
+                                                      C, ldc, batchCount, *policy);
   }
 #endif
   else
@@ -627,10 +561,9 @@ inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
     if (policy->max_mantissa_bits <= 0 || policy->max_mantissa_bits > 55)
       throw std::runtime_error("ZGEMM FP64 emulation max_mantissa_bits must be in [1,55].");
 
-    detail::gemmBatchedFp64EmulatedFixedPoint(handle, transa, transb, m, n, k, alpha_cu,
-                                              castNativeType(non_const_A), lda, castNativeType(non_const_B), ldb,
-                                              beta_cu, castNativeType(non_const_C), ldc,
-                                              batchCount, *policy);
+    detail::gemmBatchedFp64EmulatedFixedPoint<cuDoubleComplex>(
+        handle, transa, transb, m, n, k, alpha_cu, castNativeType(non_const_A), lda, castNativeType(non_const_B),
+        ldb, beta_cu, castNativeType(non_const_C), ldc, batchCount, *policy);
   }
 #endif
   else

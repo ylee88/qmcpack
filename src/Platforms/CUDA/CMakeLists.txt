@@ -12,10 +12,6 @@
 set(CUDA_RT_SRCS CUDAfill.cpp MemManageCUDA.cpp CUDAruntime.cpp CUDADeviceManager.cpp)
 set(CUDA_LA_SRCS cuBLAS_missing_functions.cu)
 
-if(QMC_BLAS_FP64_EMULATION AND NOT QMC_CUDA2HIP)
-  list(APPEND CUDA_LA_SRCS CublasLtMatmulFP64Emulation.cpp)
-endif()
-
 add_library(platform_cuda_runtime ${CUDA_RT_SRCS})
 add_library(platform_cuda_LA ${CUDA_LA_SRCS})
 
