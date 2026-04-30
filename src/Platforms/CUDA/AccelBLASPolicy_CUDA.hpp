@@ -12,8 +12,6 @@
 #ifndef QMCPLUSPLUS_ACCELBLAS_POLICY_CUDA_H
 #define QMCPLUSPLUS_ACCELBLAS_POLICY_CUDA_H
 
-#include "config.h"
-
 #include <cstddef>
 
 namespace qmcplusplus
