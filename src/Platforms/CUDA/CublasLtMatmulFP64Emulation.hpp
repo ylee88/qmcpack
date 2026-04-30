@@ -12,7 +12,10 @@
 #ifndef QMCPLUSPLUS_CUBLASLT_MATMUL_FP64EMULATION_HPP
 #define QMCPLUSPLUS_CUBLASLT_MATMUL_FP64EMULATION_HPP
 
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+
 #include "Common/AccelBLASHandle.hpp"
+#include "CUDA/cuBLAS.hpp"
 #include "CUDA/AccelBLASPolicy_CUDA.hpp"
 
 namespace qmcplusplus
@@ -57,9 +60,79 @@ void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                                        int ldc,
                                        int batchCount,
                                        const BLASPolicy& policy);
+
+// Explicit template instantiations for FP64 emulation functions
+extern template void gemmFp64EmulatedFixedPoint<double>(BLASHandle<PlatformKind::CUDA>& handle,
+                                                        const char transa,
+                                                        const char transb,
+                                                        int m,
+                                                        int n,
+                                                        int k,
+                                                        const double& alpha,
+                                                        const double* A,
+                                                        int lda,
+                                                        const double* B,
+                                                        int ldb,
+                                                        const double& beta,
+                                                        double* C,
+                                                        int ldc,
+                                                        const BLASPolicy& policy);
+
+extern template void gemmFp64EmulatedFixedPoint<cuDoubleComplex>(BLASHandle<PlatformKind::CUDA>& handle,
+                                                                 const char transa,
+                                                                 const char transb,
+                                                                 int m,
+                                                                 int n,
+                                                                 int k,
+                                                                 const cuDoubleComplex& alpha,
+                                                                 const cuDoubleComplex* A,
+                                                                 int lda,
+                                                                 const cuDoubleComplex* B,
+                                                                 int ldb,
+                                                                 const cuDoubleComplex& beta,
+                                                                 cuDoubleComplex* C,
+                                                                 int ldc,
+                                                                 const BLASPolicy& policy);
+
+extern template void gemmBatchedFp64EmulatedFixedPoint<double>(BLASHandle<PlatformKind::CUDA>& handle,
+                                                               const char transa,
+                                                               const char transb,
+                                                               int m,
+                                                               int n,
+                                                               int k,
+                                                               const double& alpha,
+                                                               const double* const A[],
+                                                               int lda,
+                                                               const double* const B[],
+                                                               int ldb,
+                                                               const double& beta,
+                                                               const double* const C[],
+                                                               int ldc,
+                                                               int batchCount,
+                                                               const BLASPolicy& policy);
+
+extern template void gemmBatchedFp64EmulatedFixedPoint<cuDoubleComplex>(BLASHandle<PlatformKind::CUDA>& handle,
+                                                                        const char transa,
+                                                                        const char transb,
+                                                                        int m,
+                                                                        int n,
+                                                                        int k,
+                                                                        const cuDoubleComplex& alpha,
+                                                                        const cuDoubleComplex* const A[],
+                                                                        int lda,
+                                                                        const cuDoubleComplex* const B[],
+                                                                        int ldb,
+                                                                        const cuDoubleComplex& beta,
+                                                                        const cuDoubleComplex* const C[],
+                                                                        int ldc,
+                                                                        int batchCount,
+                                                                        const BLASPolicy& policy);
+
 } // namespace detail
 } // namespace BLAS
 } // namespace compute
 } // namespace qmcplusplus
+
+#endif  // defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
 
 #endif
