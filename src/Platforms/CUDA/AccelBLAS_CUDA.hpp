@@ -143,19 +143,21 @@ inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
                  const std::optional<BLASPolicy>& policy = std::nullopt)
 {
   detail::validatePolicy(policy);
+  const cublasOperation_t transa_op = cuBLAS::convertOperation(transa);
+  const cublasOperation_t transb_op = cuBLAS::convertOperation(transb);
 
   if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {
-    cublasErrorCheck(cublasDgemm(handle.h_cublas, cuBLAS::convertOperation(transa), cuBLAS::convertOperation(transb), m,
-                                 n, k, &alpha, A, lda, B, ldb, &beta, C, ldc),
-                      "cublasDgemm failed!");
+    cublasErrorCheck(cublasDgemm(handle.h_cublas, transa_op, transb_op, m, n, k, &alpha, A, lda, B, ldb, &beta, C,
+                                 ldc),
+                       "cublasDgemm failed!");
   }
 #if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
   else if (policy->fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
   {
     detail::validateMantissaBitsRange(*policy);
-    detail::gemmFp64EmulatedFixedPoint<double>(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc,
-                                               *policy);
+    detail::gemmFP64EmulatedFixedPoint<double>(handle, transa_op, transb_op, m, n, k, &alpha, A, lda, B, ldb, &beta,
+                                               C, ldc, *policy);
   }
 #endif
   else
@@ -203,13 +205,15 @@ inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
 {
   const cuDoubleComplex alpha_cu = make_cuDoubleComplex(alpha.real(), alpha.imag());
   const cuDoubleComplex beta_cu  = make_cuDoubleComplex(beta.real(), beta.imag());
+  const cublasOperation_t transa_op = cuBLAS::convertOperation(transa);
+  const cublasOperation_t transb_op = cuBLAS::convertOperation(transb);
 
   detail::validatePolicy(policy);
 
   if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {
     cublasErrorCheck(
-        cublasZgemm(handle.h_cublas, cuBLAS::convertOperation(transa), cuBLAS::convertOperation(transb), m, n, k,
+        cublasZgemm(handle.h_cublas, transa_op, transb_op, m, n, k,
                     &alpha_cu, castNativeType(A), lda, castNativeType(B), ldb, &beta_cu, castNativeType(C), ldc),
         "cublasZgemm failed!");
   }
@@ -217,8 +221,8 @@ inline void gemm(BLASHandle<PlatformKind::CUDA>& handle,
   else if (policy->fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
   {
     detail::validateMantissaBitsRange(*policy);
-    detail::gemmFp64EmulatedFixedPoint<cuDoubleComplex>(handle, transa, transb, m, n, k, alpha_cu,
-                                                        castNativeType(A), lda, castNativeType(B), ldb, beta_cu,
+    detail::gemmFP64EmulatedFixedPoint<cuDoubleComplex>(handle, transa_op, transb_op, m, n, k, &alpha_cu,
+                                                        castNativeType(A), lda, castNativeType(B), ldb, &beta_cu,
                                                         castNativeType(C), ldc, *policy);
   }
 #endif
@@ -488,20 +492,21 @@ inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
                          const std::optional<BLASPolicy>& policy = std::nullopt)
 {
   detail::validatePolicy(policy);
+  const cublasOperation_t transa_op = cuBLAS::convertOperation(transa);
+  const cublasOperation_t transb_op = cuBLAS::convertOperation(transb);
 
   if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {
-    cublasErrorCheck(cublasDgemmBatched(handle.h_cublas, cuBLAS::convertOperation(transa),
-                                        cuBLAS::convertOperation(transb), m, n, k, &alpha, A, lda, B, ldb, &beta, C,
-                                        ldc, batchCount),
+    cublasErrorCheck(cublasDgemmBatched(handle.h_cublas, transa_op, transb_op, m, n, k, &alpha, A, lda, B, ldb, &beta,
+                                        C, ldc, batchCount),
                      "cublasDgemmBatched failed!");
   }
 #if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
   else if (policy->fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
   {
     detail::validateMantissaBitsRange(*policy);
-    detail::gemmBatchedFp64EmulatedFixedPoint<double>(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta,
-                                                      C, ldc, batchCount, *policy);
+    detail::gemmBatchedFP64EmulatedFixedPoint<double>(handle, transa_op, transb_op, m, n, k, &alpha, A, lda, B, ldb,
+                                                       &beta, C, ldc, batchCount, *policy);
   }
 #endif
   else
@@ -531,13 +536,14 @@ inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
 
   const cuDoubleComplex alpha_cu = make_cuDoubleComplex(alpha.real(), alpha.imag());
   const cuDoubleComplex beta_cu  = make_cuDoubleComplex(beta.real(), beta.imag());
+  const cublasOperation_t transa_op = cuBLAS::convertOperation(transa);
+  const cublasOperation_t transb_op = cuBLAS::convertOperation(transb);
 
   detail::validatePolicy(policy);
 
   if (!policy.has_value() || policy->fp64_emulation_mode == FP64EmulationMode::NATIVE)
   {
-    cublasErrorCheck(cublasZgemmBatched(handle.h_cublas, cuBLAS::convertOperation(transa),
-                                        cuBLAS::convertOperation(transb), m, n, k, &alpha_cu,
+    cublasErrorCheck(cublasZgemmBatched(handle.h_cublas, transa_op, transb_op, m, n, k, &alpha_cu,
                                         castNativeType(non_const_A), lda, castNativeType(non_const_B), ldb, &beta_cu,
                                         castNativeType(non_const_C), ldc, batchCount),
                      "cublasZgemmBatched failed!");
@@ -546,9 +552,9 @@ inline void gemm_batched(BLASHandle<PlatformKind::CUDA>& handle,
   else if (policy->fp64_emulation_mode == FP64EmulationMode::FIXED_POINT)
   {
     detail::validateMantissaBitsRange(*policy);
-    detail::gemmBatchedFp64EmulatedFixedPoint<cuDoubleComplex>(
-        handle, transa, transb, m, n, k, alpha_cu, castNativeType(non_const_A), lda, castNativeType(non_const_B),
-        ldb, beta_cu, castNativeType(non_const_C), ldc, batchCount, *policy);
+    detail::gemmBatchedFP64EmulatedFixedPoint<cuDoubleComplex>(
+        handle, transa_op, transb_op, m, n, k, &alpha_cu, castNativeType(non_const_A), lda,
+        castNativeType(non_const_B), ldb, &beta_cu, castNativeType(non_const_C), ldc, batchCount, *policy);
   }
 #endif
   else

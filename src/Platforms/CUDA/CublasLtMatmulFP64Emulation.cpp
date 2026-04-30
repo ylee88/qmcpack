@@ -94,18 +94,18 @@ struct EmuTypeTraits<cuDoubleComplex>
 };
 
 template<typename T>
-void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
-                                const char transa,
-                                const char transb,
+void gemmFP64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
+                                const cublasOperation_t transa_op,
+                                const cublasOperation_t transb_op,
                                 int m,
                                 int n,
                                 int k,
-                                const T& alpha,
+                                const T* alpha,
                                 const T* A,
                                 int lda,
                                 const T* B,
                                 int ldb,
-                                const T& beta,
+                                const T* beta,
                                 T* C,
                                 int ldc,
                                 const BLASPolicy& policy)
@@ -121,9 +121,6 @@ void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
   cublasLtMatrixLayout_t b_desc          = nullptr;
   cublasLtMatrixLayout_t c_desc          = nullptr;
   cublasLtEmulationDesc_t emulation_desc = nullptr;
-
-  const cublasOperation_t transa_op = cuBLAS::convertOperation(transa);
-  const cublasOperation_t transb_op = cuBLAS::convertOperation(transb);
 
   const int rows_a = (transa_op == CUBLAS_OP_N) ? m : k;
   const int cols_a = (transa_op == CUBLAS_OP_N) ? k : m;
@@ -167,8 +164,8 @@ void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
   cublasErrorCheck(cublasLtMatrixLayoutCreate(&c_desc, EmuTypeTraits<T>::data_type, m, n, ldc),
                    "cublasLtMatrixLayoutCreate C failed!");
 
-  cublasErrorCheck(cublasLtMatmul(lt_emulation_context.getLtHandle(), operation_desc, &alpha, A, a_desc, B, b_desc,
-                                  &beta, C, c_desc, C, c_desc, nullptr, lt_emulation_context.getWorkspacePtr(),
+  cublasErrorCheck(cublasLtMatmul(lt_emulation_context.getLtHandle(), operation_desc, alpha, A, a_desc, B, b_desc,
+                                  beta, C, c_desc, C, c_desc, nullptr, lt_emulation_context.getWorkspacePtr(),
                                   lt_emulation_context.getWorkspaceSize(), handle.h_stream),
                    "cublasLtMatmul failed!");
 
@@ -180,18 +177,18 @@ void gemmFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
 }
 
 template<typename T>
-void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
-                                       const char transa,
-                                       const char transb,
+void gemmBatchedFP64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
+                                       const cublasOperation_t transa_op,
+                                       const cublasOperation_t transb_op,
                                        int m,
                                        int n,
                                        int k,
-                                       const T& alpha,
+                                       const T* alpha,
                                        const T* const A[],
                                        int lda,
                                        const T* const B[],
                                        int ldb,
-                                       const T& beta,
+                                       const T* beta,
                                        const T* const C[],
                                        int ldc,
                                        int batchCount,
@@ -208,9 +205,6 @@ void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
   cublasLtMatrixLayout_t b_desc          = nullptr;
   cublasLtMatrixLayout_t c_desc          = nullptr;
   cublasLtEmulationDesc_t emulation_desc = nullptr;
-
-  const cublasOperation_t transa_op = cuBLAS::convertOperation(transa);
-  const cublasOperation_t transb_op = cuBLAS::convertOperation(transb);
 
   const int rows_a = (transa_op == CUBLAS_OP_N) ? m : k;
   const int cols_a = (transa_op == CUBLAS_OP_N) ? k : m;
@@ -276,8 +270,8 @@ void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
 
   auto non_const_C = const_cast<typename BottomConstRemoved<decltype(C)>::type>(C);
 
-  cublasErrorCheck(cublasLtMatmul(lt_emulation_context.getLtHandle(), operation_desc, &alpha, A, a_desc, B, b_desc,
-                                  &beta, C, c_desc, non_const_C, c_desc, nullptr,
+  cublasErrorCheck(cublasLtMatmul(lt_emulation_context.getLtHandle(), operation_desc, alpha, A, a_desc, B, b_desc,
+                                  beta, C, c_desc, non_const_C, c_desc, nullptr,
                                   lt_emulation_context.getWorkspacePtr(), lt_emulation_context.getWorkspaceSize(),
                                   handle.h_stream),
                    "cublasLtMatmul batched failed!");
@@ -292,67 +286,67 @@ void gemmBatchedFp64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
 
 // Explicit template instantiations
 
-template void gemmFp64EmulatedFixedPoint<double>(BLASHandle<PlatformKind::CUDA>& handle,
-                                                 const char transa,
-                                                 const char transb,
+template void gemmFP64EmulatedFixedPoint<double>(BLASHandle<PlatformKind::CUDA>& handle,
+                                                 const cublasOperation_t transa_op,
+                                                 const cublasOperation_t transb_op,
                                                  int m,
                                                  int n,
                                                  int k,
-                                                 const double& alpha,
+                                                 const double* alpha,
                                                  const double* A,
                                                  int lda,
                                                  const double* B,
                                                  int ldb,
-                                                 const double& beta,
+                                                 const double* beta,
                                                  double* C,
                                                  int ldc,
                                                  const BLASPolicy& policy);
 
-template void gemmFp64EmulatedFixedPoint<cuDoubleComplex>(BLASHandle<PlatformKind::CUDA>& handle,
-                                                          const char transa,
-                                                          const char transb,
+template void gemmFP64EmulatedFixedPoint<cuDoubleComplex>(BLASHandle<PlatformKind::CUDA>& handle,
+                                                          const cublasOperation_t transa_op,
+                                                          const cublasOperation_t transb_op,
                                                           int m,
                                                           int n,
                                                           int k,
-                                                          const cuDoubleComplex& alpha,
+                                                          const cuDoubleComplex* alpha,
                                                           const cuDoubleComplex* A,
                                                           int lda,
                                                           const cuDoubleComplex* B,
                                                           int ldb,
-                                                          const cuDoubleComplex& beta,
+                                                          const cuDoubleComplex* beta,
                                                           cuDoubleComplex* C,
                                                           int ldc,
                                                           const BLASPolicy& policy);
 
-template void gemmBatchedFp64EmulatedFixedPoint<double>(BLASHandle<PlatformKind::CUDA>& handle,
-                                                        const char transa,
-                                                        const char transb,
+template void gemmBatchedFP64EmulatedFixedPoint<double>(BLASHandle<PlatformKind::CUDA>& handle,
+                                                        const cublasOperation_t transa_op,
+                                                        const cublasOperation_t transb_op,
                                                         int m,
                                                         int n,
                                                         int k,
-                                                        const double& alpha,
+                                                        const double* alpha,
                                                         const double* const A[],
                                                         int lda,
                                                         const double* const B[],
                                                         int ldb,
-                                                        const double& beta,
+                                                        const double* beta,
                                                         const double* const C[],
                                                         int ldc,
                                                         int batchCount,
                                                         const BLASPolicy& policy);
 
-template void gemmBatchedFp64EmulatedFixedPoint<cuDoubleComplex>(BLASHandle<PlatformKind::CUDA>& handle,
-                                                                 const char transa,
-                                                                 const char transb,
+template void gemmBatchedFP64EmulatedFixedPoint<cuDoubleComplex>(BLASHandle<PlatformKind::CUDA>& handle,
+                                                                 const cublasOperation_t transa_op,
+                                                                 const cublasOperation_t transb_op,
                                                                  int m,
                                                                  int n,
                                                                  int k,
-                                                                 const cuDoubleComplex& alpha,
+                                                                 const cuDoubleComplex* alpha,
                                                                  const cuDoubleComplex* const A[],
                                                                  int lda,
                                                                  const cuDoubleComplex* const B[],
                                                                  int ldb,
-                                                                 const cuDoubleComplex& beta,
+                                                                 const cuDoubleComplex* beta,
                                                                  const cuDoubleComplex* const C[],
                                                                  int ldc,
                                                                  int batchCount,
