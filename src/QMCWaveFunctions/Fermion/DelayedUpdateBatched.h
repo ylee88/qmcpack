@@ -21,6 +21,8 @@
 #include "WaveFunctionTypes.hpp"
 #include "QueueAliases.hpp"
 #include "AccelBLAS.hpp"
+#include "CUDA/AccelBLASPolicy_CUDA.hpp"
+#include "Platforms/Host/OutputManager.h"
 
 namespace qmcplusplus
 {
@@ -86,7 +88,20 @@ public:
     // scratch space for keeping one row of Ainv
     UnpinnedDualVector<Value> mw_rcopy;
 
-    MultiWalkerResource() : blas_handle(queue) {}
+    // CUDA fixed-point FP64 emulation policy (nullopt = native cuBLAS)
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+    std::optional<compute::BLASPolicy> blas_policy;
+#endif
+
+    MultiWalkerResource() : blas_handle(queue)
+    {
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+      blas_policy = compute::blasPolicyFromEnv();
+      if (blas_policy)
+        app_log() << "DelayedUpdateBatched: FP64 emulation ENABLED (mantissa_bits=" << blas_policy->max_mantissa_bits
+                  << ")" << std::endl;
+#endif
+    }
 
     void resize_fill_constant_arrays(size_t nw)
     {
@@ -726,13 +741,28 @@ public:
 */
     {
       const int lda_Binv = engine_leader.Binv_gpu.cols();
-      compute::BLAS::gemm_batched(blas_handle, 'T', 'N', delay_count, norb, norb, Value(1), U_mw_ptr, norb, Ainv_mw_ptr,
-                                  lda, Value(0), tempMat_mw_ptr, lda_Binv, nw);
-      compute::applyW_batched(queue, delay_list_mw_ptr, delay_count, tempMat_mw_ptr, lda_Binv, nw);
-      compute::BLAS::gemm_batched(blas_handle, 'N', 'N', norb, delay_count, delay_count, Value(1), V_mw_ptr, norb,
-                                  Binv_mw_ptr, lda_Binv, Value(0), U_mw_ptr, norb, nw);
-      compute::BLAS::gemm_batched(blas_handle, 'N', 'N', norb, norb, delay_count, Value(-1), U_mw_ptr, norb,
-                                  tempMat_mw_ptr, lda_Binv, Value(1), Ainv_mw_ptr, lda, nw);
+#if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
+      if constexpr (PL == PlatformKind::CUDA)
+      {
+        compute::BLAS::gemm_batched(blas_handle, 'T', 'N', delay_count, norb, norb, Value(1), U_mw_ptr, norb,
+                                    Ainv_mw_ptr, lda, Value(0), tempMat_mw_ptr, lda_Binv, nw, mw_rsc.blas_policy);
+        compute::applyW_batched(queue, delay_list_mw_ptr, delay_count, tempMat_mw_ptr, lda_Binv, nw);
+        compute::BLAS::gemm_batched(blas_handle, 'N', 'N', norb, delay_count, delay_count, Value(1), V_mw_ptr, norb,
+                                    Binv_mw_ptr, lda_Binv, Value(0), U_mw_ptr, norb, nw, mw_rsc.blas_policy);
+        compute::BLAS::gemm_batched(blas_handle, 'N', 'N', norb, norb, delay_count, Value(-1), U_mw_ptr, norb,
+                                    tempMat_mw_ptr, lda_Binv, Value(1), Ainv_mw_ptr, lda, nw, mw_rsc.blas_policy);
+      }
+      else
+#endif
+      {
+        compute::BLAS::gemm_batched(blas_handle, 'T', 'N', delay_count, norb, norb, Value(1), U_mw_ptr, norb,
+                                    Ainv_mw_ptr, lda, Value(0), tempMat_mw_ptr, lda_Binv, nw);
+        compute::applyW_batched(queue, delay_list_mw_ptr, delay_count, tempMat_mw_ptr, lda_Binv, nw);
+        compute::BLAS::gemm_batched(blas_handle, 'N', 'N', norb, delay_count, delay_count, Value(1), V_mw_ptr, norb,
+                                    Binv_mw_ptr, lda_Binv, Value(0), U_mw_ptr, norb, nw);
+        compute::BLAS::gemm_batched(blas_handle, 'N', 'N', norb, norb, delay_count, Value(-1), U_mw_ptr, norb,
+                                    tempMat_mw_ptr, lda_Binv, Value(1), Ainv_mw_ptr, lda, nw);
+      }
     }
     delay_count = 0;
   }

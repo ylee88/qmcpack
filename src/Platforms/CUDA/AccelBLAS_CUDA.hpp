@@ -66,11 +66,12 @@ public:
   }
 
 #if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
-  CublasLtEmulationContext& ensureLtEmulationContext(const std::size_t requested_workspace_bytes)
+  // Returns (creating if necessary) the per-handle emulation context.
+  // Workspace allocation is deferred: call ensureWorkspace on the returned context.
+  CublasLtEmulationContext& ensureLtEmulationContext()
   {
     if (!lt_emulation_context_)
       lt_emulation_context_ = std::make_unique<CublasLtEmulationContext>();
-    lt_emulation_context_->ensureWorkspace(requested_workspace_bytes);
     return *lt_emulation_context_;
   }
 #endif
