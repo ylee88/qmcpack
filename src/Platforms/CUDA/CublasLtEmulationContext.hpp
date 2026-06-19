@@ -22,6 +22,7 @@
 #include <cublasLt.h>
 
 #include <functional>
+#include <limits>
 #include <list>
 #include <stdexcept>
 #include <unordered_map>
@@ -112,14 +113,14 @@ public:
 
   // Look up the cached algo for this GEMM shape, or run heuristic selection and cache it.
   // The descriptors must already be fully configured (shapes, batch attributes, emulation desc).
-  // max_workspace_budget is the workspace ceiling passed to cublasLt heuristic; actual allocation
-  // is deferred to ensureWorkspace(algo_entry.workspace_size) after this call returns.
+  // No workspace budget cap is imposed: the heuristic is free to select the optimal INT8 Ozaki
+  // algo regardless of workspace size. Actual allocation is deferred to ensureWorkspace() after
+  // this call returns; only the algo's reported workspace_size is allocated, not SIZE_MAX.
   const AlgoCacheEntry& getOrSelectAlgo(const AlgoCacheKey& key,
                                         cublasLtMatmulDesc_t op_desc,
                                         cublasLtMatrixLayout_t a_desc,
                                         cublasLtMatrixLayout_t b_desc,
-                                        cublasLtMatrixLayout_t c_desc,
-                                        std::size_t max_workspace_budget)
+                                        cublasLtMatrixLayout_t c_desc)
   {
     auto it = algo_cache_.find(key);
     if (it != algo_cache_.end())
@@ -129,11 +130,12 @@ public:
       return it->second.entry;
     }
 
-    // Cache miss: run heuristic selection
+    // Cache miss: run heuristic selection with no workspace cap so INT8 Ozaki is always preferred.
+    const std::size_t unlimited = std::numeric_limits<std::size_t>::max();
     cublasLtMatmulPreference_t pref = nullptr;
     cublasErrorCheck(cublasLtMatmulPreferenceCreate(&pref), "cublasLtMatmulPreferenceCreate failed!");
     cublasErrorCheck(cublasLtMatmulPreferenceSetAttribute(pref, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-                                                          &max_workspace_budget, sizeof(max_workspace_budget)),
+                                                          &unlimited, sizeof(unlimited)),
                      "cublasLtMatmulPreferenceSetAttribute failed!");
 
     cublasLtMatmulHeuristicResult_t heuristic{};
@@ -144,7 +146,7 @@ public:
     cublasLtMatmulPreferenceDestroy(pref);
 
     if (returned_count == 0)
-      throw std::runtime_error("cublasLtMatmulAlgoGetHeuristic: no valid algorithm found for current workspace size.");
+      throw std::runtime_error("cublasLtMatmulAlgoGetHeuristic: no valid algorithm found.");
 
     // Evict LRU entry if at capacity
     if (algo_cache_.size() >= MAX_CACHE_ENTRIES)

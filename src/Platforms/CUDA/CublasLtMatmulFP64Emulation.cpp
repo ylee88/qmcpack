@@ -194,8 +194,7 @@ void gemmFP64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
   const AlgoCacheKey key{m, n, k, lda, ldb, ldc, 1, transa_op, transb_op,
                          EmuTypeTraits<T>::data_type, policy.max_mantissa_bits};
   const auto& algo_entry =
-      lt_emulation_context.getOrSelectAlgo(key, d.operation_desc, d.a_desc, d.b_desc, d.c_desc,
-                                           policy.min_workspace_bytes);
+      lt_emulation_context.getOrSelectAlgo(key, d.operation_desc, d.a_desc, d.b_desc, d.c_desc);
   lt_emulation_context.ensureWorkspace(algo_entry.workspace_size);
 
   cublasErrorCheck(cublasLtMatmul(lt_emulation_context.getLtHandle(), d.operation_desc, alpha, A, d.a_desc, B, d.b_desc,
@@ -237,8 +236,7 @@ void gemmBatchedFP64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
   const AlgoCacheKey key{m, n, k, lda, ldb, ldc, batchCount, transa_op, transb_op,
                          EmuTypeTraits<T>::data_type, policy.max_mantissa_bits};
   const auto& algo_entry =
-      lt_emulation_context.getOrSelectAlgo(key, d.operation_desc, d.a_desc, d.b_desc, d.c_desc,
-                                           policy.min_workspace_bytes);
+      lt_emulation_context.getOrSelectAlgo(key, d.operation_desc, d.a_desc, d.b_desc, d.c_desc);
   lt_emulation_context.ensureWorkspace(algo_entry.workspace_size);
 
   auto non_const_C = const_cast<typename BottomConstRemoved<decltype(C)>::type>(C);

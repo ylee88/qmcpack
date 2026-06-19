@@ -82,8 +82,7 @@ TEST_CASE("AccelBLAS_CUDA DGEMM FP64 emulation benchmark", "[CUDA][BLAS][.benchm
 
   compute::BLASPolicy emu_policy;
   emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.min_workspace_bytes = 128ULL * 1024ULL * 1024ULL;
-  emu_policy.max_mantissa_bits   = 55;
+  emu_policy.max_mantissa_bits = 55;
 
   BENCHMARK_ADVANCED("[CUDA/f64] dgemm_emu_fixedpoint_1024x1024x1024")(Catch::Benchmark::Chronometer meter)
   {
@@ -113,8 +112,7 @@ TEST_CASE("AccelBLAS_CUDA DGEMM batched FP64 emulation benchmark", "[CUDA][BLAS]
 
   compute::BLASPolicy emu_policy;
   emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.min_workspace_bytes = 128ULL * 1024ULL * 1024ULL;
-  emu_policy.max_mantissa_bits   = 55;
+  emu_policy.max_mantissa_bits = 55;
 
   std::vector<mat_t> A_b(batch_count), B_b(batch_count), C_batched(batch_count);
   for (int ib = 0; ib < batch_count; ++ib)
@@ -203,8 +201,7 @@ TEST_CASE("AccelBLAS_CUDA ZGEMM FP64 emulation benchmark", "[CUDA][BLAS][.benchm
 
   compute::BLASPolicy emu_policy;
   emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.min_workspace_bytes = 128ULL * 1024ULL * 1024ULL;
-  emu_policy.max_mantissa_bits   = 55;
+  emu_policy.max_mantissa_bits = 55;
 
   BENCHMARK_ADVANCED("[CUDA/zf64] zgemm_emu_fixedpoint_1024x1024x1024")(Catch::Benchmark::Chronometer meter)
   {
@@ -234,8 +231,7 @@ TEST_CASE("AccelBLAS_CUDA ZGEMM batched FP64 emulation benchmark", "[CUDA][BLAS]
 
   compute::BLASPolicy emu_policy;
   emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.min_workspace_bytes = 128ULL * 1024ULL * 1024ULL;
-  emu_policy.max_mantissa_bits   = 55;
+  emu_policy.max_mantissa_bits = 55;
 
   std::vector<cmat_t> A_b(batch_count), B_b(batch_count), C_batched(batch_count);
   for (int ib = 0; ib < batch_count; ++ib)

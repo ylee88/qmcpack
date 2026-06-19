@@ -176,8 +176,7 @@ TEST_CASE("AccelBLAS_CUDA_DGEMM_policy_emulation_request", "[CUDA][BLAS]")
 
   compute::BLASPolicy emu_policy;
   emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.min_workspace_bytes = 64ULL * 1024ULL * 1024ULL;
-  emu_policy.max_mantissa_bits   = 55;
+  emu_policy.max_mantissa_bits = 55;
 
   CHECK_NOTHROW(compute::BLAS::gemm(h_blas, 'N', 'N', M, N, K, 1.0, A.device_data(), M, B.device_data(), K, 0.0,
                                     C.device_data(), M, emu_policy));
@@ -320,8 +319,7 @@ TEST_CASE("AccelBLAS_CUDA_ZGEMM_policy_emulation_request", "[CUDA][BLAS]")
 
   compute::BLASPolicy emu_policy;
   emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.min_workspace_bytes = 64ULL * 1024ULL * 1024ULL;
-  emu_policy.max_mantissa_bits   = 55;
+  emu_policy.max_mantissa_bits = 55;
 
   const std::complex<double> alpha(1.0, 0.0);
   const std::complex<double> beta(0.0, 0.0);
