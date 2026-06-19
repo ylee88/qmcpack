@@ -10,6 +10,7 @@
 //////////////////////////////////////////////////////////////////////////////////////
 
 #include "AccelBLAS_CUDA.hpp"
+#include "Host/OutputManager.h"
 
 #if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
 
@@ -195,7 +196,12 @@ void gemmFP64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                          EmuTypeTraits<T>::data_type, policy.max_mantissa_bits};
   const auto& algo_entry =
       lt_emulation_context.getOrSelectAlgo(key, d.operation_desc, d.a_desc, d.b_desc, d.c_desc);
+  const std::size_t prev_ws = lt_emulation_context.getWorkspaceSize();
   lt_emulation_context.ensureWorkspace(algo_entry.workspace_size);
+  if (lt_emulation_context.getWorkspaceSize() > prev_ws)
+    app_log() << "FP64 emulation workspace: " << lt_emulation_context.getWorkspaceSize() / (1024 * 1024)
+              << " MiB for m=" << m << " n=" << n << " k=" << k << " bs=1"
+              << " mantissa_bits=" << policy.max_mantissa_bits << "\n";
 
   cublasErrorCheck(cublasLtMatmul(lt_emulation_context.getLtHandle(), d.operation_desc, alpha, A, d.a_desc, B, d.b_desc,
                                   beta, C, d.c_desc, C, d.c_desc, &algo_entry.algo,
@@ -237,7 +243,12 @@ void gemmBatchedFP64EmulatedFixedPoint(BLASHandle<PlatformKind::CUDA>& handle,
                          EmuTypeTraits<T>::data_type, policy.max_mantissa_bits};
   const auto& algo_entry =
       lt_emulation_context.getOrSelectAlgo(key, d.operation_desc, d.a_desc, d.b_desc, d.c_desc);
+  const std::size_t prev_ws = lt_emulation_context.getWorkspaceSize();
   lt_emulation_context.ensureWorkspace(algo_entry.workspace_size);
+  if (lt_emulation_context.getWorkspaceSize() > prev_ws)
+    app_log() << "FP64 emulation workspace: " << lt_emulation_context.getWorkspaceSize() / (1024 * 1024)
+              << " MiB for m=" << m << " n=" << n << " k=" << k << " bs=" << batchCount
+              << " mantissa_bits=" << policy.max_mantissa_bits << "\n";
 
   auto non_const_C = const_cast<typename BottomConstRemoved<decltype(C)>::type>(C);
 
