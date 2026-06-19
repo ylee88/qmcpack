@@ -101,7 +101,7 @@ inline void validatePolicy(const std::optional<BLASPolicy>& policy)
 
 inline void validateMantissaBitsRange(const BLASPolicy& policy)
 {
-  if (policy.max_mantissa_bits <= 0 || policy.max_mantissa_bits > 55)
+  if (policy.max_mantissa_bits <= 0 || policy.max_mantissa_bits > max_mantissa_bits_limit)
     throw std::runtime_error("BLASPolicy max_mantissa_bits must be in [1,55].");
 }
 

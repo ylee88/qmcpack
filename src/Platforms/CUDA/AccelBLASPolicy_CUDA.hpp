@@ -25,6 +25,10 @@ namespace qmcplusplus
 namespace compute
 {
 
+// Upper bound on fixed-point emulation mantissa bits
+// (FP64 has 52 explicit, + 1 implicit; cuBLAS fixed-point emulation accepts up to 55)
+inline constexpr int max_mantissa_bits_limit = 55;
+
 enum class FP64EmulationMode
 {
   NATIVE,
@@ -34,7 +38,7 @@ enum class FP64EmulationMode
 struct BLASPolicy
 {
   FP64EmulationMode fp64_emulation_mode = FP64EmulationMode::NATIVE;
-  int max_mantissa_bits                 = 55;
+  int max_mantissa_bits                 = max_mantissa_bits_limit;
 };
 
 #if defined(QMC_BLAS_FP64_EMULATION) && !defined(QMC_CUDA2HIP)
@@ -53,7 +57,7 @@ inline std::optional<BLASPolicy> blasPolicyFromEnv()
   if (bits_env)
   {
     const int bits = std::atoi(bits_env);
-    if (bits <= 0 || bits > 55)
+    if (bits <= 0 || bits > max_mantissa_bits_limit)
       throw std::runtime_error("QMCPACK_FP64_EMU_MANTISSA_BITS must be in [1,55].");
     policy.max_mantissa_bits = bits;
   }
