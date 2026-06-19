@@ -16,6 +16,7 @@
 #include <OhmmsPETE/OhmmsMatrix.h>
 
 #include <complex>
+#include <cstdlib>
 #include <vector>
 
 namespace qmcplusplus
@@ -29,6 +30,16 @@ namespace
 {
 using mat_t = Matrix<double, PinnedDualAllocator<double>>;
 using cmat_t = Matrix<std::complex<double>, PinnedDualAllocator<std::complex<double>>>;
+
+compute::BLASPolicy makeEmuPolicy()
+{
+  compute::BLASPolicy p;
+  p.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
+  if (const char* env = std::getenv("QMCPACK_FP64_EMU_MANTISSA_BITS"))
+    p.max_mantissa_bits = std::atoi(env);
+  // else: default 55 from BLASPolicy constructor
+  return p;
+}
 
 void fill_mat(mat_t& mat)
 {
@@ -80,9 +91,7 @@ TEST_CASE("AccelBLAS_CUDA DGEMM FP64 emulation benchmark", "[CUDA][BLAS][.benchm
     });
   };
 
-  compute::BLASPolicy emu_policy;
-  emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.max_mantissa_bits = 55;
+  compute::BLASPolicy emu_policy = makeEmuPolicy();
 
   BENCHMARK_ADVANCED("[CUDA/f64] dgemm_emu_fixedpoint_1024x1024x1024")(Catch::Benchmark::Chronometer meter)
   {
@@ -110,9 +119,7 @@ TEST_CASE("AccelBLAS_CUDA DGEMM batched FP64 emulation benchmark", "[CUDA][BLAS]
   compute::BLASPolicy native_policy;
   native_policy.fp64_emulation_mode = compute::FP64EmulationMode::NATIVE;
 
-  compute::BLASPolicy emu_policy;
-  emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.max_mantissa_bits = 55;
+  compute::BLASPolicy emu_policy = makeEmuPolicy();
 
   std::vector<mat_t> A_b(batch_count), B_b(batch_count), C_batched(batch_count);
   for (int ib = 0; ib < batch_count; ++ib)
@@ -199,9 +206,7 @@ TEST_CASE("AccelBLAS_CUDA ZGEMM FP64 emulation benchmark", "[CUDA][BLAS][.benchm
     });
   };
 
-  compute::BLASPolicy emu_policy;
-  emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.max_mantissa_bits = 55;
+  compute::BLASPolicy emu_policy = makeEmuPolicy();
 
   BENCHMARK_ADVANCED("[CUDA/zf64] zgemm_emu_fixedpoint_1024x1024x1024")(Catch::Benchmark::Chronometer meter)
   {
@@ -229,9 +234,7 @@ TEST_CASE("AccelBLAS_CUDA ZGEMM batched FP64 emulation benchmark", "[CUDA][BLAS]
   compute::BLASPolicy native_policy;
   native_policy.fp64_emulation_mode = compute::FP64EmulationMode::NATIVE;
 
-  compute::BLASPolicy emu_policy;
-  emu_policy.fp64_emulation_mode = compute::FP64EmulationMode::FIXED_POINT;
-  emu_policy.max_mantissa_bits = 55;
+  compute::BLASPolicy emu_policy = makeEmuPolicy();
 
   std::vector<cmat_t> A_b(batch_count), B_b(batch_count), C_batched(batch_count);
   for (int ib = 0; ib < batch_count; ++ib)
