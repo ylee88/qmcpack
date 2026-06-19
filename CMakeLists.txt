@@ -705,8 +705,15 @@ if(ENABLE_CUDA AND NOT QMC_CUDA2HIP)
         "This often happens when CMake failed in recognizing the NVHPC internal CUDA toolkit with libcublas. "
         "Set CMAKE_CUDA_COMPILER to the full path of nvcc from a complete CUDA toolkit installation.")
   endif()
-  if(QMC_BLAS_FP64_EMULATION AND NOT TARGET CUDA::cublasLt)
-    message(FATAL_ERROR "QMC_BLAS_FP64_EMULATION requires CUDA::cublasLt target from the CUDA toolkit.")
+  if(QMC_BLAS_FP64_EMULATION)
+    if(NOT TARGET CUDA::cublasLt)
+      message(FATAL_ERROR "QMC_BLAS_FP64_EMULATION requires CUDA::cublasLt target from the CUDA toolkit.")
+    endif()
+    if(CUDAToolkit_VERSION VERSION_LESS 13.0)
+      message(
+        FATAL_ERROR
+          "QMC_BLAS_FP64_EMULATION requires CUDA Toolkit >= 13.0 (found ${CUDAToolkit_VERSION}).")
+    endif()
   endif()
   # Automatically set the default NVCC flags
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Drestrict=__restrict__ -DNO_CUDA_MAIN")
